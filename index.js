@@ -1,4 +1,6 @@
 import Server from './libs/server.js'
 
-const server = Server.create( { port: 5000 })
+const port = process.env.PORT || 5000
+
+const server = Server.create( { port: port })
 server.start()

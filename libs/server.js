@@ -45,7 +45,7 @@ export default class Server {
       const filename = `${this._dashDir}/${req.params.filename}`
       const [ ext ] = req.params.filename.split(".").slice(-1)
       let handler
-      
+
       try {
         handler = await open( filename )
           .catch( () => null )
@@ -165,7 +165,7 @@ export default class Server {
       console.error( `\x1b[31m${err.status} \x1b[33m${err.stack}\x1b[37m` )
       next( err )
     }
-    
+
     const errorHandler = ( err, req, res, next ) => {
       if( res.headersSent ) {
         return next( err )
