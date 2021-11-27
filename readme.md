@@ -2,7 +2,8 @@
 
 ## run ffmpeg
 
-need ffmpeg v4.4.1
+need ffmpeg v4.3.1 or higher, maybe
+( `sudo snap install ffmpeg` will work on Ubuntu20.04 )
 
 ```
 $ cd scripts

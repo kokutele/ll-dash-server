@@ -10,6 +10,7 @@
   "author": "kensaku komatsu (https://medium.com/kokutele)",
   "license": "MIT",
   "dependencies": {
+    "chokidar": "^3.5.2",
     "express": "^4.17.1"
   }
 }
