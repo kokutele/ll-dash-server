@@ -1,9 +1,8 @@
 import express from 'express'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { TextDecoder } from 'util'
 import EventEmitter from 'events'
-import { open, stat, watch } from 'fs/promises'
+import { open, watch } from 'fs/promises'
 import { watch as watchCallback } from 'fs'
 
 import HttpError from './http-error.js'
