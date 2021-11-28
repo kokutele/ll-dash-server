@@ -1,6 +1,7 @@
 import express from 'express'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { TextDecoder } from 'util'
 import EventEmitter from 'events'
 import { open, stat, watch } from 'fs/promises'
 import { watch as watchCallback } from 'fs'
@@ -38,8 +39,37 @@ export default class Server extends EventEmitter {
       .catch(err => { throw new HttpError(err.message, 500) })
 
     res.write( buff.slice( 0, bytesRead ) )
+    console.log( `\x1b[32m[MP4Box]\x1b[37m${JSON.stringify( this.parseMp4Box( buff ))}` )
 
     return bytesRead
+  }
+
+  /**
+   * Basic parser of MP4 box. This will parse only 1st layer of box 
+   * then return array of type and length.
+   * 
+   * @snipet
+   * ```js
+   * this.parseMp4Box( buff ) 
+   *   #=> [{"type":"prft","length":32},{"type":"moof","length":220},{"type":"mdat","length":35170}]
+   * ```
+   * 
+   * @param {Buffer} buff 
+   * @returns {Array<Object>}
+   */
+  static parseMp4Box = ( buff ) => {
+    let boxStart = 0
+    const ret = []
+
+    while ( boxStart < buff.length ) {
+      const length = buff.readUInt32BE( boxStart )
+      const type = buff.toString( 'ascii', boxStart + 4, boxStart + 8 )
+      ret.push({ type, length })
+      
+      boxStart += length
+    }
+
+    return ret
   }
 
 
