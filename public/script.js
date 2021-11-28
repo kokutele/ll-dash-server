@@ -2,13 +2,15 @@ const videoEl = document.querySelector("#video-player")
 const startEl = document.querySelector("#btn-start")
 
 const start = () => {
+  startEl.disabled = true
+
   const url = '/dash/1.mpd'
 
   const player = dashjs.MediaPlayer().create()
   player.initialize( videoEl, url, true )
   player.updateSettings({
     streaming: {
-         lowLatencyEnabled: true, 
+         lowLatencyEnabled: true,
           delay: {
             liveDelay: 3
          },
@@ -16,7 +18,7 @@ const start = () => {
             minDrift: 0.02,
             maxDrift: 0,
             playbackRate: 0.5,
-            latencyThreshold: 60    
+            latencyThreshold: 60
           }
     }
   });
