@@ -6,6 +6,7 @@ const start = () => {
 
   const url = '/dash/1.mpd'
 
+  // eslint-disable-next-line no-undef
   const player = dashjs.MediaPlayer().create()
   player.initialize( videoEl, url, true )
   player.updateSettings({
@@ -22,11 +23,10 @@ const start = () => {
           }
     }
   });
-  console.log( player )
 
   videoEl.addEventListener('loadedmetadata', async () => {
     await videoEl.play()
-      .then( () => console.log('video play succeeded' ))
+      .then( () => console.log('succeeded in playing video' ))
       .catch( err => console.error( err.message ))
   }, false )
 }

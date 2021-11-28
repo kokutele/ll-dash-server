@@ -1,7 +1,3 @@
-export const hello = () => {
-  console.log('world!')
-}
-
 export const getContentType = ext => {
   switch( ext ) {
   case 'txt':

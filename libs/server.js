@@ -125,66 +125,62 @@ export default class Server extends EventEmitter {
           const tmpFile = `${filename}.tmp`
           const [ _tmpFile ] = tmpFile.split("/").slice( -1 )
           handler = await open( tmpFile )
-            .catch( err => { throw new HttpError( `NOT FOUND - ${req.url}`, 404 )})
+            .catch( () => { throw new HttpError( `NOT FOUND - ${req.url}`, 404 )})
 
           res.setHeader('Content-Type', getContentType( ext ))
 
           let pos = 0
 
+          // send first chunk
+          // todo - create function for read data then write
+          //      - check mp4 box
+          const bytesRead = await this.constructor.readThenSend( handler, res, pos )
+
+          pos += bytesRead
+
+          console.log( `\x1b[36m[${_tmpFile}]\x1b[37m - sent: ${bytesRead}, total: ${pos}` )
+
+          // set abort controller, since sometimes `rename` will not emitted
+          // when filename changed.
+          const ac = new AbortController()
+          const { signal } = ac
+          const timer = setTimeout( () => {
+            console.warn('\x1b[35mtimeout detected\x1b[37m')
+            ac.abort()
+          }, 5000 )
+
+          // When ${_filename}.tmp change to ${_filename}.m4s, event
+          // `rename:${_filename}` will be emitted. When we detect this
+          // event, we will stop file watcher using `ac.abort()`.
+          const _filename = req.params.filename
+          this.once(`rename:${_filename}`, () => {
+            console.log(`\x1b[32m[rename detected]\x1b[37m - ${_filename}`)
+            clearTimeout( timer )
+            ac.abort()
+          })
+
+          // start watcher for tmp file.
+          const watcher = watch( tmpFile, { persistent: true, recursive: false, signal } )
+
           try {
-            // send first chunk
-            // todo - create function for read data then write
-            //      - check mp4 box
-            const bytesRead = await this.constructor.readThenSend( handler, res, pos )
+            for await( const event of watcher ) {
+              if( event.eventType === "change" ) {
+                // in case when file changed, read added data then write it 
+                // as chunked-transfer
+                const bytesRead = await this.constructor.readThenSend( handler, res, pos )
+                pos += bytesRead
 
-            pos += bytesRead
-
-            console.log( `\x1b[36m[${_tmpFile}]\x1b[37m - sent: ${bytesRead}, total: ${pos}` )
-
-            // set abort controller, since sometimes `rename` will not emitted
-            // when filename changed.
-            const ac = new AbortController()
-            const { signal } = ac
-            const timer = setTimeout( () => {
-              console.warn('\x1b[35mtimeout detected\x1b[37m')
-              ac.abort()
-            }, 5000 )
-
-            // When ${_filename}.tmp change to ${_filename}.m4s, event
-            // `rename:${_filename}` will be emitted. When we detect this
-            // event, we will stop file watcher using `ac.abort()`.
-            const _filename = req.params.filename
-            this.once(`rename:${_filename}`, () => {
-              console.log(`\x1b[32m[rename detected]\x1b[37m - ${_filename}`)
-              clearTimeout( timer )
-              ac.abort()
-            })
-
-            // start watcher for tmp file.
-            const watcher = watch( tmpFile, { persistent: true, recursive: false, signal } )
-
-            try {
-              for await( const event of watcher ) {
-                if( event.eventType === "change" ) {
-                  // in case when file changed, read added data then write it 
-                  // as chunked-transfer
-                  const bytesRead = await this.constructor.readThenSend( handler, res, pos )
-                  pos += bytesRead
-
-                  console.log( `\x1b[36m[${_tmpFile}]\x1b[37m - sent: ${bytesRead}, total: ${pos}` )
-                } else if( event.eventType === 'rename') {
-                  // noop
-                }
-              }
-            } catch(err) {
-              if ( err.name === 'AbortError' ) {
-                // do nothing
-              } else {
-                throw err
+                console.log( `\x1b[36m[${_tmpFile}]\x1b[37m - sent: ${bytesRead}, total: ${pos}` )
+              } else if( event.eventType === 'rename') {
+                // noop
               }
             }
-          } catch( err ) {
-            throw err
+          } catch(err) {
+            if ( err.name === 'AbortError' ) {
+              // do nothing
+            } else {
+              throw err
+            }
           }
 
           // finish chunked-transfer

@@ -1,0 +1,17 @@
+{
+  "extends": ["eslint:recommended"],
+  "parser": "@babel/eslint-parser",
+  "plugins": [],
+  "parserOptions": { 
+    "requireConfigFile": false,
+    "sourceType": "module",
+    "ecmaVersion": 2016
+  },
+  "env": {
+    "browser": true, 
+    "node": true, 
+    "es6": true
+  },
+  "globals": {},
+  "rules": {}
+}
