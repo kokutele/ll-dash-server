@@ -1,5 +1,5 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
   <head>
     <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
     <title>LL DASH Server</title>
@@ -11,12 +11,18 @@
     </header>
     <main>
       <div>
-        <button id="btn-start">start</button>
+        <p>
+          <button type="button" id="btn-start">start</button>
+          <label>
+            low latency:
+            <input type="checkbox" id="chk-lowlatency" checked>
+          </label>
+        </p>
       </div>
       <div>
         <video id="video-player"></video>
       </div>
     </main>
+    <script src="./script.js"></script>
   </body>
-  <script src="./script.js"></script>
 </html>
