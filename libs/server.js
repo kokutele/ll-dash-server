@@ -1,9 +1,9 @@
 import express from 'express'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import EventEmitter from 'events'
 import { open, stat, watch } from 'fs/promises'
-import { watchFile, unwatchFile } from 'fs'
-import chokidar from 'chokidar'
+import { watch as watchCallback } from 'fs'
 
 import HttpError from './http-error.js'
 import { getContentType } from './util.js'
@@ -11,7 +11,7 @@ import { getContentType } from './util.js'
 const __filename = fileURLToPath( import.meta.url )
 const __dirname = path.dirname( __filename )
 
-export default class Server {
+export default class Server extends EventEmitter {
   _port = 3000
   _publicDir = __dirname + "/../public"
   _dashDir   = __dirname + "/../dash-data"
@@ -22,6 +22,8 @@ export default class Server {
   }
 
   constructor( props ) {
+    super( props )
+
     if( props && props.port ) {
       this._port = props.port
     }
@@ -34,6 +36,8 @@ export default class Server {
     this._setDashHandler()
 
     this._setErrorHandler()
+
+    this._setWatchListener()
 
     this._app.listen( this._port, () => {
       console.log( `start server on port ${this._port}` )
@@ -66,7 +70,7 @@ export default class Server {
 
           console.log(`GET - ${req.url} (${size})`)
         } else {
-         // case file not exists, there maybe tmp file. When tmp file exists,
+          // case when file not exists, there maybe tmp file. When tmp file exists,
           // we will send it via http chunked-transfer way.
           // otherwise, throw 404
           const tmpFile = `${filename}.tmp`
@@ -74,13 +78,17 @@ export default class Server {
           handler = await open( tmpFile )
             .catch( err => { throw new HttpError( `NOT FOUND - ${req.url}`, 404 )})
 
-          const buff = Buffer.alloc( 1000000 )
-
           res.setHeader('Content-Type', getContentType( ext ))
+
           let pos = 0
 
           try {
-            const { size }= await handler.stat()
+            const buff = Buffer.alloc( 1000000 )
+
+            // send first chunk
+            // todo - create function for read data then write
+            //      - check mp4 box
+            const { size } = await handler.stat()
             const { bytesRead, buffer } = await handler.read( buff, 0, ( size - pos ), pos )
             res.write( buff.slice( 0, ( size - pos ) ) )
 
@@ -88,70 +96,60 @@ export default class Server {
 
             console.log( `\x1b[36m[${_tmpFile}]\x1b[37m - sent: ${bytesRead}, total: ${pos}` )
 
-            const watcher = chokidar.watch( tmpFile )
+            // set abort controller, since sometimes `rename` will not emitted
+            // when filename changed.
+            const ac = new AbortController()
+            const { signal } = ac
+            const timer = setTimeout( () => {
+              console.warn('\x1b[35mtimeout detected\x1b[37m')
+              ac.abort()
+            }, 5000 )
 
-            watcher.on('all', async ( event, path ) => {
-              if( event === 'add' || event === 'unlink' ) {
-                const { size }= await handler.stat()
-                if( size > pos ) {
+            // When ${_filename}.tmp change to ${_filename}.m4s, event
+            // `rename:${_filename}` will be emitted. When we detect this
+            // event, we will stop file watcher using `ac.abort()`.
+            const _filename = req.params.filename
+            this.once(`rename:${_filename}`, () => {
+              console.log(`\x1b[32m[rename detected]\x1b[37m - ${_filename}`)
+              clearTimeout( timer )
+              ac.abort()
+            })
+
+            // start watcher for tmp file.
+            const watcher = watch( tmpFile, { persistent: true, recursive: false, signal } )
+
+            try {
+              for await( const event of watcher ) {
+                if( event.eventType === "change" ) {
+                  // in case when file changed, read added data then write it 
+                  // as chunked-transfer
+                  const { size } = await handler.stat()
                   const { bytesRead, buffer } = await handler.read( buff, 0, ( size - pos ), pos )
 
                   res.write( buff.slice( 0, ( size - pos ) ) )
                   pos += bytesRead
+
                   console.log( `\x1b[36m[${_tmpFile}]\x1b[37m - sent: ${bytesRead}, total: ${pos}` )
+                } else if( event.eventType === 'rename') {
+                  // noop
                 }
-
-                if ( event === 'unlink' ) {
-                  await watcher.close()
-                  handler.close()
-                  res.end()
-                  console.log(`GET - ${req.url} (${pos})`)
-                }
-              } else {
               }
-            })
-
-            // watchFile( tmpFile, ( curr, prev ) => {
-            //   console.log(`current mtime ${curr.mtime}`)
-            //   console.log(`previous mtime ${prev.mtime}`)
-            // })
-
-            // // todo - include abort controller
-            // const ac = new AbortController()
-            // const { signal } = ac
-            // const timer = setTimeout( () => ac.abort(), 10000 )
-            // const watcher = watch( tmpFile, { persistent: true, recursive: false, signal } )
-
-            // try {
-            //   for await( const event of watcher ) {
-            //     console.log( event, tmpFile )
-            //     if( event.eventType === "change" ) {
-            //       const { size }= await handler.stat()
-            //       const { bytesRead, buffer } = await handler.read( buff, 0, ( size - pos ), pos )
-            //       console.log( size, bytesRead )
-
-            //       res.write( buff.slice( 0, ( size - pos ) ) )
-            //       pos += bytesRead
-            //     } else if( event.eventType === 'rename') {
-            //       clearTimeout( timer )
-            //       break
-            //     }
-            //   }
-            // } catch(err) {
-            //   if ( err.name === 'AbortError' ) {
-            //     console.log('\x1b[31mabort\x1b[37m')
-            //     return
-            //   } else {
-            //     throw err
-            //   }
-            // }
+            } catch(err) {
+              if ( err.name === 'AbortError' ) {
+                // do nothing
+              } else {
+                throw err
+              }
+            }
           } catch( err ) {
             throw new HttpError( err.message, 500 )
           }
 
-          //console.log('\x1b[36end\x1b[37m')
-          //handler.close()
-          //res.end()
+          // finish chunked-transfer
+          handler.close()
+          res.end()
+
+          console.log(`GET - ${req.url} (${pos})`)
         }
       } catch(err) {
         if( handler ) handler.close()
@@ -177,5 +175,14 @@ export default class Server {
 
     this._app.use( logErrors )
     this._app.use( errorHandler )
+  }
+
+  _setWatchListener() {
+    watchCallback( this._dashDir, ( eventType, filename ) => {
+      if( filename.match(/.+\.m4s$/) ) {
+        // console.log(`\x1b[32m${filename} - ${eventType}\x1b[37m`)
+        this.emit( `${eventType}:${filename}` )
+      }
+    })
   }
 }
