@@ -21,6 +21,29 @@ export default class Server extends EventEmitter {
     return new this( { port } )
   }
 
+  /**
+   * 
+   * @param {FileHandle} handler - file handler 
+   * @param {Response}   res     - http response object
+   * @param {number}     [pos]   - current position of file
+   * @returns {Promise<number>}  - bytesRead
+   */
+  static readThenSend = async ( handler, res, pos = 0 ) => {
+    const { size } = await handler.stat()
+      .catch(err => { throw new HttpError(err.message, 500) })
+
+    const len = size - pos
+    const buff = Buffer.alloc( len )
+    const { bytesRead } = await handler.read(buff, 0, len, pos )
+      .catch(err => { throw new HttpError(err.message, 500) })
+
+    res.write( buff.slice( 0, bytesRead ) )
+
+    return bytesRead
+  }
+
+
+
   constructor( props ) {
     super( props )
 
@@ -29,6 +52,8 @@ export default class Server extends EventEmitter {
     }
     this._app = express()
   }
+
+
 
   start() {
     this._app.use( express.static( this._publicDir ) )
@@ -56,19 +81,14 @@ export default class Server extends EventEmitter {
 
         if( handler ) {
           // case file exists. send data via regular http response
-          const { size } = await handler.stat()
-            .catch( err => { throw new HttpError( err.message, 500 ) })
-          const buff = Buffer.alloc( size )
+          res.setHeader('Content-Type', getContentType( ext ))
 
-          const { bytesRead, buffer } = await handler.read( buff, 0, size, 0 )
-            .catch( err => { throw new HttpError( err.message, 500 ) })
-
+          const bytesRead = await this.constructor.readThenSend( handler, res, 0 )
           handler.close()
 
-          res.setHeader('Content-Type', getContentType( ext ))
-          res.send( buff.slice( 0, size ) )
+          res.end()
 
-          console.log(`GET - ${req.url} (${size})`)
+          console.log(`GET - ${req.url} (${bytesRead})`)
         } else {
           // case when file not exists, there maybe tmp file. When tmp file exists,
           // we will send it via http chunked-transfer way.
@@ -83,14 +103,10 @@ export default class Server extends EventEmitter {
           let pos = 0
 
           try {
-            const buff = Buffer.alloc( 1000000 )
-
             // send first chunk
             // todo - create function for read data then write
             //      - check mp4 box
-            const { size } = await handler.stat()
-            const { bytesRead, buffer } = await handler.read( buff, 0, ( size - pos ), pos )
-            res.write( buff.slice( 0, ( size - pos ) ) )
+            const bytesRead = await this.constructor.readThenSend( handler, res, pos )
 
             pos += bytesRead
 
@@ -123,10 +139,7 @@ export default class Server extends EventEmitter {
                 if( event.eventType === "change" ) {
                   // in case when file changed, read added data then write it 
                   // as chunked-transfer
-                  const { size } = await handler.stat()
-                  const { bytesRead, buffer } = await handler.read( buff, 0, ( size - pos ), pos )
-
-                  res.write( buff.slice( 0, ( size - pos ) ) )
+                  const bytesRead = await this.constructor.readThenSend( handler, res, pos )
                   pos += bytesRead
 
                   console.log( `\x1b[36m[${_tmpFile}]\x1b[37m - sent: ${bytesRead}, total: ${pos}` )
@@ -142,7 +155,7 @@ export default class Server extends EventEmitter {
               }
             }
           } catch( err ) {
-            throw new HttpError( err.message, 500 )
+            throw err
           }
 
           // finish chunked-transfer
