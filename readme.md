@@ -17,3 +17,13 @@ then inject mp4 stream via rtmp on port 1935.
 ```
 $ node index.js
 ```
+
+then open `http://localhost:5000`
+
+## env
+
+* port
+  - port number of http server ( default: 5000 )
+
+---
+&copy; kensaku.komatsu
