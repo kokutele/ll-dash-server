@@ -7,7 +7,7 @@ need ffmpeg v4.3.1 or higher, maybe
 
 ```
 $ cd scripts
-$ ./rtmpsrc.sh
+$ ./ll-rtmpsrc.sh
 ```
 
 then inject mp4 stream via rtmp on port 1935.

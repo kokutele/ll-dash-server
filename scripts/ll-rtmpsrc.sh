@@ -1,8 +1,5 @@
 #!/bin/sh
-
-# -f lavfi -i testsrc=duration=30:size=1280x720:rate=30 \
-# -f lavfi -i sine=frequency=1000:d=30 \
-#  -f flv -listen 1 -i rtmp://10.146.0.58:1935/live/app \
+  #-c:v h264 -force_key_frames "expr:gte(t,n_forced*4)" -profile:v baseline \
 
 ffmpeg -f flv -listen 1 \
   -i rtmp://0.0.0.0:1935/live/app \

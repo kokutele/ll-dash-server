@@ -30,7 +30,10 @@ const start = () => {
   }: {
     streaming: {
       lowLatencyEnabled: false,
-      lowLatencyEnabledByManifest: false
+      lowLatencyEnabledByManifest: false,
+      delay: {
+        liveDelay: 30
+      },
     }
   }
 
