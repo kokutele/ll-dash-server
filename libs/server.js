@@ -26,12 +26,14 @@ export default class Server extends EventEmitter {
    * @param {object} param 
    * @param {number} [param.port] - port number (default = 3000)
    * @param {string} [param.logLevel] - log level (default = 'info')
+   * @param {string} [param.dashDir] - directory path of dash data (default = __dirname + "/../dash-data")
    * 
    * @returns 
    */
-  static create( { port, logLevel } ) {
+  static create( { port, logLevel, dashDir } ) {
     logger.setLevel( logLevel || 'info' )
-    return new this( { port } )
+
+    return new this( { port, dashDir } )
   }
 
   /**
@@ -90,6 +92,11 @@ export default class Server extends EventEmitter {
     if( props && props.port ) {
       this._port = props.port
     }
+
+    if( props && props.dashDir ) {
+      this._dashDir = props.dashDir
+    }
+
     this._app = express()
   }
 
@@ -104,6 +111,7 @@ export default class Server extends EventEmitter {
 
     this._app.listen( this._port, () => {
       logger.info( `start server on port ${this._port}` )
+      logger.info( `serving dash data from '${this._dashDir}'` )
     })
   }
 
@@ -225,10 +233,15 @@ export default class Server extends EventEmitter {
   }
 
   _setWatchListener() {
-    watchCallback( this._dashDir, ( eventType, filename ) => {
-      if( filename.match(/.+\.m4s$/) ) {
-        this.emit( `${eventType}:${filename}` )
-      }
-    })
+    try {
+      watchCallback( this._dashDir, ( eventType, filename ) => {
+        if( filename.match(/.+\.m4s$/) ) {
+          this.emit( `${eventType}:${filename}` )
+        }
+      })
+    } catch(err) {
+      console.error( err.message )
+      process.exit( 1 )
+    }
   }
 }

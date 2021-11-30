@@ -1,5 +1,4 @@
 #!/bin/sh
-  #-c:v h264 -force_key_frames "expr:gte(t,n_forced*4)" -profile:v baseline \
 
 ffmpeg -f flv -listen 1 \
   -i rtmp://0.0.0.0:1935/live/app \
