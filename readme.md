@@ -22,8 +22,10 @@ then open `http://localhost:5000`
 
 ## env
 
-* port
+* PORT
   - port number of http server ( default: 5000 )
+* LOG_LEVEL
+  - log level ( 'trace', 'debug', 'info', 'warn', 'error' and 'fatal'. default: 'info' )
 
 ---
 &copy; kensaku.komatsu

@@ -13,7 +13,8 @@
   "author": "kensaku komatsu (https://medium.com/kokutele)",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.17.1"
+    "express": "^4.17.1",
+    "simple-node-logger": "^21.8.12"
   },
   "devDependencies": {
     "@babel/core": "^7.16.0",

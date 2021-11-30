@@ -5,8 +5,12 @@ import EventEmitter from 'events'
 import { open, watch } from 'fs/promises'
 import { watch as watchCallback } from 'fs'
 
+import Logger from 'simple-node-logger'
+
 import HttpError from './http-error.js'
 import { getContentType } from './util.js'
+
+const logger = Logger.createSimpleLogger()
 
 const __filename = fileURLToPath( import.meta.url )
 const __dirname = path.dirname( __filename )
@@ -17,7 +21,16 @@ export default class Server extends EventEmitter {
   _dashDir   = __dirname + "/../dash-data"
   _app = null
 
-  static create( { port } ) {
+  /**
+   * 
+   * @param {object} param 
+   * @param {number} [param.port] - port number (default = 3000)
+   * @param {string} [param.logLevel] - log level (default = 'info')
+   * 
+   * @returns 
+   */
+  static create( { port, logLevel } ) {
+    logger.setLevel( logLevel || 'info' )
     return new this( { port } )
   }
 
@@ -38,7 +51,7 @@ export default class Server extends EventEmitter {
       .catch(err => { throw new HttpError(err.message, 500) })
 
     res.write( buff.slice( 0, bytesRead ) )
-    console.log( `\x1b[32m[MP4Box]\x1b[37m${JSON.stringify( this.parseMp4Box( buff ))}` )
+    logger.trace( `\x1b[32m[MP4Box]\x1b[37m${JSON.stringify( this.parseMp4Box( buff ))}` )
 
     return bytesRead
   }
@@ -71,8 +84,6 @@ export default class Server extends EventEmitter {
     return ret
   }
 
-
-
   constructor( props ) {
     super( props )
 
@@ -81,8 +92,6 @@ export default class Server extends EventEmitter {
     }
     this._app = express()
   }
-
-
 
   start() {
     this._app.use( express.static( this._publicDir ) )
@@ -94,7 +103,7 @@ export default class Server extends EventEmitter {
     this._setWatchListener()
 
     this._app.listen( this._port, () => {
-      console.log( `start server on port ${this._port}` )
+      logger.info( `start server on port ${this._port}` )
     })
   }
 
@@ -117,7 +126,7 @@ export default class Server extends EventEmitter {
 
           res.end()
 
-          console.log(`GET - ${req.url} (${bytesRead})`)
+          logger.info(`GET - ${req.url} (${bytesRead})`)
         } else {
           // case when file not exists, there maybe tmp file. When tmp file exists,
           // we will send it via http chunked-transfer way.
@@ -138,14 +147,14 @@ export default class Server extends EventEmitter {
 
           pos += bytesRead
 
-          console.log( `\x1b[36m[${_tmpFile}]\x1b[37m - sent: ${bytesRead}, total: ${pos}` )
+          logger.trace( `\x1b[36m[${_tmpFile}]\x1b[37m - sent: ${bytesRead}, total: ${pos}` )
 
           // set abort controller, since sometimes `rename` will not emitted
           // when filename changed.
           const ac = new AbortController()
           const { signal } = ac
           const timer = setTimeout( () => {
-            console.warn('\x1b[35mtimeout detected\x1b[37m')
+            logger.warn('\x1b[35mtimeout detected\x1b[37m')
             ac.abort()
           }, 5000 )
 
@@ -154,7 +163,7 @@ export default class Server extends EventEmitter {
           // event, we will stop file watcher using `ac.abort()`.
           const _filename = req.params.filename
           this.once(`rename:${_filename}`, () => {
-            console.log(`\x1b[32m[rename detected]\x1b[37m - ${_filename}`)
+            logger.debug(`\x1b[32m[rename detected]\x1b[37m - ${_filename}`)
             clearTimeout( timer )
             ac.abort()
           })
@@ -170,7 +179,7 @@ export default class Server extends EventEmitter {
                 const bytesRead = await this.constructor.readThenSend( handler, res, pos )
                 pos += bytesRead
 
-                console.log( `\x1b[36m[${_tmpFile}]\x1b[37m - sent: ${bytesRead}, total: ${pos}` )
+                logger.trace( `\x1b[36m[${_tmpFile}]\x1b[37m - sent: ${bytesRead}, total: ${pos}` )
               } else if( event.eventType === 'rename') {
                 // noop
               }
@@ -187,7 +196,7 @@ export default class Server extends EventEmitter {
           handler.close()
           res.end()
 
-          console.log(`GET - ${req.url} (${pos})`)
+          logger.info(`GET - ${req.url} (${pos})`)
         }
       } catch(err) {
         if( handler ) handler.close()
@@ -198,7 +207,7 @@ export default class Server extends EventEmitter {
 
   _setErrorHandler() {
     const logErrors = ( err, req, res, next ) => {
-      console.error( `\x1b[31m${err.status} \x1b[33m${err.stack}\x1b[37m` )
+      logger.error( `\x1b[31m${err.status} \x1b[33m${err.stack}\x1b[37m` )
       next( err )
     }
 
@@ -218,7 +227,6 @@ export default class Server extends EventEmitter {
   _setWatchListener() {
     watchCallback( this._dashDir, ( eventType, filename ) => {
       if( filename.match(/.+\.m4s$/) ) {
-        // console.log(`\x1b[32m${filename} - ${eventType}\x1b[37m`)
         this.emit( `${eventType}:${filename}` )
       }
     })
