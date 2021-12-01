@@ -50,7 +50,7 @@ then open `http://localhost:5000`
 $ docker-compose up
 ```
 
-then open `http://localhost` ( in docker-compose, `nginx` is ued as well. )
+then open `http://localhost` ( in docker-compose, `varnish` is used as well. )
 
 ---
 &copy; kensaku.komatsu
