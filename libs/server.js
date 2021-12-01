@@ -20,6 +20,9 @@ export default class Server extends EventEmitter {
   _publicDir = __dirname + "/../public"
   _dashDir   = __dirname + "/../dash-data"
   _app = null
+  _currentDashSessions = 0
+  _totalDashSessions = 0
+  _bytesSent = 0
 
   /**
    * 
@@ -100,10 +103,60 @@ export default class Server extends EventEmitter {
     this._app = express()
   }
 
+  /**
+   * @param {number} num 
+   * 
+   */
+  set currentDashSessions( num ) {
+    this._currentDashSessions = num
+  } 
+
+  /**
+   * @return {number} 
+   * 
+   */
+  get currentDashSessions() {
+    return this._currentDashSessions
+  }
+
+  /**
+   * @param {number} num
+   * 
+   */
+  set totalDashSessions( num ) {
+    this._totalDashSessions = num
+  }
+
+  /**
+   * @return {number}
+   * 
+   */
+  get totalDashSessions() {
+    return this._totalDashSessions
+  }
+
+  /**
+   * @param {number} num
+   * 
+   */
+  set bytesSent( num ) {
+    this._bytesSent = num
+  }
+
+  /**
+   * @returns {number}
+   * 
+   */
+  get bytesSent() {
+    return this._bytesSent
+  }
+
   start() {
     this._app.use( express.static( this._publicDir ) )
 
     this._setDashHandler()
+
+    this._setStatHandler()
 
     this._setErrorHandler()
 
@@ -121,6 +174,9 @@ export default class Server extends EventEmitter {
       const [ ext ] = req.params.filename.split(".").slice(-1)
       let handler
 
+      this.currentDashSessions += 1
+      this.totalDashSessions += 1
+
       try {
         handler = await open( filename )
           .catch( () => null )
@@ -135,6 +191,9 @@ export default class Server extends EventEmitter {
           res.end()
 
           logger.info(`GET - ${req.url} (${bytesRead})`)
+
+          this.currentDashSessions -= 1
+          this.bytesSent += bytesRead
         } else {
           // case when file not exists, there maybe tmp file. When tmp file exists,
           // we will send it via http chunked-transfer way.
@@ -205,11 +264,26 @@ export default class Server extends EventEmitter {
           res.end()
 
           logger.info(`GET - ${req.url} (${pos})`)
+
+          this.currentDashSessions -= 1
+          this.bytesSent += pos
         }
       } catch(err) {
         if( handler ) handler.close()
+        this.currentDashSessions -= 1
+
         next( err )
       }
+    })
+  }
+
+  _setStatHandler() {
+    this._app.get('/stat', ( req, res ) => {
+      res.json({
+        currentDashSessions: this.currentDashSessions,
+        totalDashSessions:   this.totalDashSessions,
+        bytesSent: this.bytesSent
+      })
     })
   }
 
