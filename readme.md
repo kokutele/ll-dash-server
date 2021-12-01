@@ -46,33 +46,11 @@ then open `http://localhost:5000`
 
 ## running on docker
 
-### build
-
-* dash-packager (ffmpeg)
-
 ```bash
-$ docker build -t dash-packager scripts/
+$ docker-compose up
 ```
 
-* dash-server (nodejs)
-
-```bash
-$ docker build -t dash-server .
-```
-
-### run
-
-* dash-packager
-
-```bash
-$ docker run -it -p 1935:1935 -v ${PWD}/dash-data:/dash-data dash-packager
-```
-
-* dash-server
-
-```bash
-$ docker run --rm -p 5000:5000 -v ${PWD}/dash-data:/dash-data dash-server
-```
+then open `http://localhost` ( in docker-compose, `nginx` is installed as well. )
 
 ---
 &copy; kensaku.komatsu
